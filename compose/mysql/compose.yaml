@@ -1,0 +1,78 @@
+# version: '3'
+
+networks:
+
+  kabballa_private_network:
+    #
+    #   SSH command to create the Docker network: 
+    #   docker network create --driver bridge kabballa_private_network --subnet=172.16.0.0/16
+    #
+
+    external: true
+services:
+
+    mysql:
+        image: mariadb:latest
+        container_name: mysql
+        hostname: localhost
+        restart: always
+        env_file:
+            - ../../compose/mysql/.env
+        environment:
+            MYSQL_ROOT_PASSWORD: '${MYSQL_ROOT_PASSWORD}'
+            MYSQL_USER: '${MYSQL_USER}'
+            MYSQL_PASSWORD: '${MYSQL_PASSWORD}'
+            MYSQL_DATABASE: '${MYSQL_DATABASE}'
+        volumes:
+            - mysqldata:/var/lib/mysql
+            #- ../../backup//mysql/db_dump.sql:/docker-entrypoint-initdb.d/db_dump.sql
+            - ../../compose/mysql/mysqld.cnf:/etc/mysql/conf.d/mysqld.cnf
+        ports:
+            - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:3306:3306"
+            #- 3306:3306
+        networks:
+            - kabballa_private_network
+        extra_hosts:
+            #
+            #   Add extra host entries for internal resolution
+            #
+
+            - "host.docker.internal:host-gateway"
+            - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+            #
+            #   Setup PMA_HOST variable in .env file
+            #
+
+            - "${PMA_HOST:-mysql}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+    phpmyadmin:
+        image: phpmyadmin
+        container_name: phpmyadmin.coozila.com
+        hostname: localhost
+        restart: always
+        ports:
+            - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:9997:80"
+        env_file:
+            - ../../compose/mysql/.env
+        environment:
+            ServerName: "${SERVER_NAME}"
+            PMA_HOST: "${PMA_HOST}"
+            PMA_USER: "${PMA_USER}"
+            PMA_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+            UPLOAD_LIMIT: "${UPLOAD_LIMIT}"
+        volumes:
+            - ../../compose/phpmyadmin/phpmyadmin.inc.php:/etc/phpmyadmin/config.user.inc.php
+        depends_on:
+            - mysql
+        networks:
+            - kabballa_private_network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+            - "127.0.0.1:host-gateway"
+
+            #
+            #   Setup PMA_HOST variable in .env file
+            #
+
+            - "localhost:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+volumes:
+    mysqldata: {}

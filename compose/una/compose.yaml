@@ -1,0 +1,181 @@
+# ----------------------------------------------------------------------------------#
+#                                                                                   #
+#   Copyright (C) 2009 - 2025 Coozila! Licensed under the MIT License.              #
+#   Coozila! Team    lab@example.com                                                #
+#                                                                                   #
+# ----------------------------------------------------------------------------------#
+
+networks:                                                                           #
+
+  # --------------------------------------------------------------------------------#
+
+  #   Private network for application services    ----------------------------------#
+
+  kabballa_private_network:
+
+    #   SSH command to create the Docker network: 
+
+    #
+    #   docker network create --driver bridge kabballa_private_network --subnet=172.16.0.0/16
+    #
+
+    external: true,
+
+  # --------------------------------------------------------------------------------#
+
+  #   Private network for application services    ----------------------------------#
+
+  una_private_network:
+
+    #   SSH command to create the Docker network: 
+
+    #
+    #   docker network create --driver bridge kabba_private_network --subnet=172.16.0.0/16
+    #
+
+    external: true
+
+  # --------------------------------------------------------------------------------#
+
+#   KABBALLA SERVICES    --------------------------------------------------------------#
+
+services:
+
+  # --------------------------------------------------------------------------------#
+
+  #   PROXY NODE 1   ---------------------------------------------------------------#
+
+  una-proxy:
+    image: nginx:${PROXY_VERSION}
+    container_name: una-proxy.${PROXY_VERSION}
+    hostname: localhost
+    restart: always
+    ports:
+      #
+      #   Expose the master node port
+      #
+
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:${PROXY_SERVER_PORT:-8080}:${PROXY_CONTAINER_PORT-8080}"
+
+    volumes:
+      #
+      #   Nginx conf files
+      #
+
+      - ../../compose/una/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ../../compose/una/nginx/rate_limit.conf:/etc/nginx/conf.d/rate_limit.conf
+      - ../../compose/una/nginx/memcached.conf:/etc/nginx/conf.d/memcached.conf
+
+      #
+      #   Nginx logs files
+      #
+
+      - ../../logs/access.log:/var/log/nginx/access.log
+      - ../../logs/error.log:/var/log/nginx/error.log
+
+      #
+      #   Plus files
+      #
+
+      - ../../apps/una:/opt/una
+
+      #
+      #   Local Time
+      #
+
+      - /etc/localtime:/etc/localtime:ro
+
+    networks:
+      - una_private_network
+      - kabballa_private_network
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "127.0.0.1:host-gateway"  # IP address for backend
+
+  # --------------------------------------------------------------------------------#
+
+  #   PHP NODE 1   -----------------------------------------------------------------#
+
+  una-php:
+    image: una/una-php:${UNA_VERSION}-${PHP_VERSION}
+    container_name: php.una.${UNA_VERSION}-${PHP_VERSION}
+    restart: always
+    hostname: localhost
+    ports:
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:${UNA_SERVER_PORT:-9000}:${UNA_CONTAINER_PORT-9000}"
+    build:
+      context: ../../apps/una
+      dockerfile: ../../compose/una/${PHP_VERSION}/PHP.Dockerfile
+    volumes:
+      - ../../compose/una/${PHP_VERSION}/php.ini:/usr/local/etc/php/php.ini
+      - ../../compose/una/${PHP_VERSION}/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
+      - ../../compose/una/${PHP_VERSION}/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
+      - ../../compose/una/${PHP_VERSION}/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
+      - ../../compose/una/${PHP_VERSION}/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ../../apps/una:/opt/una:Z
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - una_private_network
+      - kabballa_private_network
+
+    extra_hosts:
+      #
+      #   Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+
+      #
+      #   Add extra service entries for internal resolution
+      #
+
+      - "${UNA_HOSTNAME:-www.example.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "${UNA_HOSTNAME:-www.example.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
+
+  # --------------------------------------------------------------------------------#
+
+  #   CRON PHP NODE 1   ------------------------------------------------------------#
+
+  una-cron:
+    image: una/una-cron:${UNA_VERSION}-${PHP_VERSION}
+    container_name: una-cron.${UNA_VERSION}-${PHP_VERSION}
+    restart: always
+    hostname: localhost
+    build:
+      context: ../../apps/una
+      dockerfile: ../../compose/una/${PHP_VERSION}/Cron.Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8G
+    volumes:
+      - ../../compose/una/${PHP_VERSION}/php.ini:/usr/local/etc/php/php.ini
+      - ../../compose/una/${PHP_VERSION}/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
+      - ../../compose/una/${PHP_VERSION}/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
+      - ../../compose/una/${PHP_VERSION}/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
+
+      - ../../compose/una/${PHP_VERSION}/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ../../apps/una:/opt/una:Z
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - una_private_network
+      - kabballa_private_network
+
+    extra_hosts:
+      #
+      #   Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+
+      #
+      #   Add extra service entries for internal resolution
+      #
+
+      - "${UNA_HOSTNAME:-www.example.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "${UNA_HOSTNAME:-www.example.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
+
