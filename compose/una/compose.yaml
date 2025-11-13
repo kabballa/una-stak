@@ -19,21 +19,9 @@ networks:                                                                       
     #   docker network create --driver bridge kabballa_private_network --subnet=172.16.0.0/16
     #
 
-    external: true,
+    external: true
 
   # --------------------------------------------------------------------------------#
-
-  #   Private network for application services    ----------------------------------#
-
-  una_private_network:
-
-    #   SSH command to create the Docker network: 
-
-    #
-    #   docker network create --driver bridge kabba_private_network --subnet=172.16.0.0/16
-    #
-
-    external: true
 
   # --------------------------------------------------------------------------------#
 
@@ -86,7 +74,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
 
     networks:
-      - una_private_network
       - kabballa_private_network
 
     extra_hosts:
@@ -98,25 +85,39 @@ services:
   #   PHP NODE 1   -----------------------------------------------------------------#
 
   una-php:
-    image: una/una-php:${UNA_VERSION}-${PHP_VERSION}
+    image: coozila/una-php:${UNA_VERSION}-${PHP_VERSION}
     container_name: php.una.${UNA_VERSION}-${PHP_VERSION}
     restart: always
     hostname: localhost
     ports:
       - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:${UNA_SERVER_PORT:-9000}:${UNA_CONTAINER_PORT-9000}"
     build:
-      context: ../../apps/una
+      context: ../../apps/${UNA_VERSION}
       dockerfile: ../../compose/una/${PHP_VERSION}/PHP.Dockerfile
     volumes:
+      #
+      #   PHP Custom files
+      #
+
       - ../../compose/una/${PHP_VERSION}/php.ini:/usr/local/etc/php/php.ini
       - ../../compose/una/${PHP_VERSION}/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
       - ../../compose/una/${PHP_VERSION}/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
       - ../../compose/una/${PHP_VERSION}/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
       - ../../compose/una/${PHP_VERSION}/www.conf:/usr/local/etc/php-fpm.d/www.conf
-      - ../../apps/una:/opt/una:Z
+
+      #
+      #   UNA files
+      #
+
+      - ../../apps/${UNA_VERSION}:/opt/una:Z
+
+      #
+      #   Local time
+      #
+
       - /etc/localtime:/etc/localtime:ro
+
     networks:
-      - una_private_network
       - kabballa_private_network
 
     extra_hosts:
@@ -139,12 +140,12 @@ services:
   #   CRON PHP NODE 1   ------------------------------------------------------------#
 
   una-cron:
-    image: una/una-cron:${UNA_VERSION}-${PHP_VERSION}
+    image: coozila/una-cron:${UNA_VERSION}-${PHP_VERSION}
     container_name: una-cron.${UNA_VERSION}-${PHP_VERSION}
     restart: always
     hostname: localhost
     build:
-      context: ../../apps/una
+      context: ../../apps/${UNA_VERSION}
       dockerfile: ../../compose/una/${PHP_VERSION}/Cron.Dockerfile
     deploy:
       resources:
@@ -152,16 +153,29 @@ services:
           cpus: '2'
           memory: 8G
     volumes:
+      #
+      #   PHP Custom files
+      #
+
       - ../../compose/una/${PHP_VERSION}/php.ini:/usr/local/etc/php/php.ini
       - ../../compose/una/${PHP_VERSION}/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
       - ../../compose/una/${PHP_VERSION}/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
       - ../../compose/una/${PHP_VERSION}/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
-
       - ../../compose/una/${PHP_VERSION}/www.conf:/usr/local/etc/php-fpm.d/www.conf
-      - ../../apps/una:/opt/una:Z
+
+      #
+      #   UNA files
+      #
+
+      - ../../apps/${UNA_VERSION}:/opt/una:Z
+
+      #
+      #   Local time
+      #
+
       - /etc/localtime:/etc/localtime:ro
+
     networks:
-      - una_private_network
       - kabballa_private_network
 
     extra_hosts:
@@ -179,3 +193,187 @@ services:
       - "${UNA_HOSTNAME:-www.example.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
       - "${UNA_HOSTNAME:-www.example.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
 
+# --------------------------------------------------------------------------------#
+  
+  #   MYSQL DATABASE   -------------------------------------------------------------#
+
+  mysql:
+    image: mariadb:latest
+    container_name: mysql
+    hostname: localhost
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - MYSQL_ROOT_PASSWORD='${MYSQL_ROOT_PASSWORD}'
+      - MYSQL_USER='${MYSQL_USER}'
+      - MYSQL_PASSWORD='${MYSQL_PASSWORD}'
+      - MYSQL_DATABASE='${MYSQL_DATABASE}'
+    volumes:
+      - mysqldata:/var/lib/mysql
+      - ../../compose/una/mysql/db_dump.sql:/docker-entrypoint-initdb.d/db_dump.sql
+      - ../../compose/una//mysql/mysqld.cnf:/etc/mysql/conf.d/mysqld.cnf
+    ports:
+      - "127.0.0.1:3306:3306"
+      #- 3307:3306
+    networks:
+      - kabballa_private_network
+    extra_hosts:
+      #
+      #   Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+
+  # --------------------------------------------------------------------------------#
+
+  #   PHPMYADMIN   -----------------------------------------------------------------#
+
+  phpmyadmin:
+    image: phpmyadmin
+    container_name: phpmyadmin.coozila.com
+    #hostname: localhost
+    restart: always
+    ports:
+      - ${LOCAL_LISTEN_ADDR:-127.0.0.1}:9997:80
+    env_file:
+      - .env
+    environment:
+
+      #
+      #   Environment variables for PhpMyAdmin
+      #
+
+      - PMA_HOST=${PMA_HOST:-mysql}
+
+      #
+      #   Comma-separated hostnames of the database servers
+      #
+
+      #- PMA_HOSTS=${MULTIPLE_HOSTS_PHPMYADMIN}
+
+      #
+      #   Port of the database server
+      #
+
+      #- PMA_PORT=${PMA_PORT:-3306}
+
+      #
+      #   Setup your root user and password for PhpMyAdmin instance in your .env file, default database is phpmyadmin
+      #
+
+      #- PMA_PMADB=${DATABASE_PHPMYADMIN}
+
+      #
+      #   Setup your root user and password for PhpMyAdmin instance in your .env file, for control user comment the next lines
+      #
+
+      - PMA_USER=root
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD}
+
+      #
+      #   Control host for phpMyAdmin. Uncomment if using control features and setup your .env file variable
+      #
+
+      #- PMA_CONTROLHOST=${CONTROL_HOST_PHPMYADMIN}
+
+      #
+      # Control user for phpMyAdmin. Uncomment if using control features and setup your .env file variable
+      #
+
+      #- PMA_CONTROLUSER=${CONTROL_USER_PHPMYADMIN}
+
+      #
+      # Control password for phpMyAdmin. Uncomment if using control features and setup your .env file variable
+      #
+
+      #- PMA_CONTROLPASS=${CONTROL_PASSWORD_PHPMYADMIN}
+
+      #
+      #   Setup your upload and memory limit in .env file
+      #
+
+      - UPLOAD_LIMIT=${UPLOAD_LIMIT_PHPMYADMIN:-1024M}
+      - MEMORY_LIMIT=${MEMORY_LIMIT_PHPMYADMIN:-1024M}
+
+      #
+      #   Setup the maximum execution time for scripts in seconds in your .env file
+      #
+
+      #- MAX_EXECUTION_TIME=${MAX_EXECUTION_TIME_PHPMYADMIN}
+
+      #
+      #   Setup the "ServerName" for the phpMyAdmin instance in your .env file
+      #
+
+      - ServerName=${SERVER_NAME_PHPMYADMIN:-localhost}
+
+      #
+      #   If defined, this option will hide the PHP version. Setup your .env file variable.
+      #
+
+      #- HIDE_PHP_VERSION=${HIDE_PHP_VERSION_PHPMYADMIN:-true}
+
+      #
+      #   Uncomment if query history features and setup your .env file variable
+      #
+
+      #- PMA_QUERYHISTORYDB=${QUERYHISTORY_DATABASE_PHPMYADMIN}
+      #- PMA_QUERYHISTORYMAX=${PMA_QUERYHISTORYMAX}
+
+      #
+      # Allows entering a database server hostname on the login form
+      #
+
+      #- PMA_ARBITRARY=${PMA_ARBITRARY}
+
+      #
+      # Verbose name of the database server
+      #
+
+      #- PMA_VERBOSE=${PMA_VERBOSE}
+
+      #
+      #   Socket file for the database connection
+      #
+
+      #- PMA_SOCKET=${PMA_SOCKET}
+
+      #
+      #   Fully qualified path for phpMyAdmin
+      #
+
+      #- PMA_ABSOLUTE_URI=${PMA_ABSOLUTE_URI}
+
+      #
+      #   Path where files can be saved for import
+      #
+
+      #- PMA_UPLOADDIR=${PMA_UPLOADDIR}
+
+      #
+      #   Path where exported files can be saved
+      #
+
+      #- PMA_SAVEDIR=${PMA_SAVEDIR}
+    volumes:
+      - ../../compose/una/phpmyadmin.inc.php:/etc/phpmyadmin/config.user.inc.php
+
+    depends_on:
+      - mysql
+
+    networks:
+      - kabballa_private_network
+
+    extra_hosts:
+      #
+      # Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+      #- "${SERVER_NAME_PHPMYADMIN:-localhost}:127.0.0.1"
+
+volumes:
+    mysqldata: {}

@@ -1,0 +1,183 @@
+# ----------------------------------------------------------------------------------#
+#                                                                                   #
+#   Copyright (C) 2009 - 2025 Coozila! Licensed under the MIT License.              #
+#   Coozila! Team    lab@coozila.com                                                #
+#                                                                                   #
+# ----------------------------------------------------------------------------------#
+
+networks:                                                                           #
+
+  # --------------------------------------------------------------------------------#
+
+  #   Private network for application services    ----------------------------------#
+
+  kabba_private_network:
+
+    #   SSH command to create the Docker network: 
+
+    #
+    #   docker network create --driver bridge kabba_private_network --subnet=172.16.0.0/16
+    #
+
+    external: true
+
+  # --------------------------------------------------------------------------------#
+
+  #   Private network for application services    ----------------------------------#
+
+  una_private_network:
+
+    #   SSH command to create the Docker network: 
+
+    #
+    #   docker network create --driver bridge kabba_private_network --subnet=172.16.0.0/16
+    #
+
+    external: true
+
+  # --------------------------------------------------------------------------------#
+
+#   KABBA SERVICES    --------------------------------------------------------------#
+
+services:
+
+  # --------------------------------------------------------------------------------#
+
+  #   PROXY NODE 1   ---------------------------------------------------------------#
+
+  proxy-plus:
+    image: nginx:latest
+    container_name: proxy.coozila.com.plus.${PLUS_VERSION}
+    hostname: localhost
+    restart: always
+    ports:
+      #
+      #   Expose the master node port
+      #
+
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:9993:9993"
+
+    volumes:
+      #
+      #   Nginx conf files
+      #
+
+      - ../../compose/plus/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - ../../compose/plus/nginx/rate_limit.conf:/etc/nginx/conf.d/rate_limit.conf
+      - ../../compose/plus/nginx/memcached.conf:/etc/nginx/conf.d/memcached.conf
+
+      #
+      #   Nginx logs files
+      #
+
+      - ../../logs/access.log:/var/log/nginx/access.log
+      - ../../logs/error.log:/var/log/nginx/error.log
+
+      #
+      #   Plus files
+      #
+
+      - ../../apps/plus:/opt/plus
+
+      #
+      #   Local Time
+      #
+
+      - /etc/localtime:/etc/localtime:ro
+
+    networks:
+      - coozila_private_network
+      - kabba_private_network
+
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+      - "127.0.0.1:host-gateway"  # IP address for backend
+
+  # --------------------------------------------------------------------------------#
+
+  #   PHP NODE 1   -----------------------------------------------------------------#
+
+  php-plus:
+    image: coozila/coozila-php-plus:${PLUS_VERSION}
+    container_name: php.coozila.com.plus.${PLUS_VERSION}
+    restart: always
+    hostname: localhost
+    ports:
+      - "127.0.0.1:9003:9003"
+    build:
+      context: ../../apps/plus
+      dockerfile: ../../compose/plus/php8.1/PHP.Dockerfile
+    volumes:
+      - ../../compose/plus/php8.1/php.ini:/usr/local/etc/php/php.ini
+      - ../../compose/plus/php8.1/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
+      - ../../compose/plus/php8.1/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
+      - ../../compose/plus/php8.1/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
+      - ../../compose/plus/php8.1/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ../../apps/plus:/opt/plus:Z
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - coozila_private_network
+      - kabba_private_network
+
+    extra_hosts:
+      #
+      #   Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+
+      #
+      #   Add extra service entries for internal resolution
+      #
+
+      - "${PLUS_HOSTNAME:-coozila.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "www.${PLUS_HOSTNAME:-coozila.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "${PLUS_HOSTNAME:-coozila.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
+      - "www.${PLUS_HOSTNAME:-coozila.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
+
+  # --------------------------------------------------------------------------------#
+
+  #   CRON PHP NODE 1   ------------------------------------------------------------#
+
+  cron-plus:
+    image: coozila/coozila-cron.plus:${PLUS_VERSION}
+    container_name: cron.coozila.com.plus.${PLUS_VERSION}
+    restart: always
+    hostname: localhost
+    build:
+      context: ../../apps/plus
+      dockerfile: ../../compose/plus/php8.1/Cron.Dockerfile
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    volumes:
+      - ../../compose/plus/php8.1/php.ini:/usr/local/etc/php/php.ini
+      - ../../compose/plus/php8.1/docker.conf:/usr/local/etc/php-fpm.d/docker.conf
+      - ../../compose/plus/php8.1/www.conf.default:/usr/local/etc/php-fpm.d/www.conf.default
+      - ../../compose/plus/php8.1/zz-docker.conf:/usr/local/etc/php-fpm.d/zz-docker.conf
+      - ../../compose/plus/php8.1/www.conf:/usr/local/etc/php-fpm.d/www.conf
+      - ../../apps/plus:/opt/plus:Z
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - coozila_private_network
+      - kabba_private_network
+
+    extra_hosts:
+      #
+      #   Add extra host entries for internal resolution
+      #
+
+      - "host.docker.internal:host-gateway"
+      - "${LOCAL_LISTEN_ADDR:-127.0.0.1}:host-gateway"
+
+      #
+      #   Add extra service entries for internal resolution
+      #
+
+      - "${PLUS_HOSTNAME:-coozila.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "www.${PLUS_HOSTNAME:-coozila.com}:${LOCAL_LISTEN_ADDR:-127.0.0.1}"
+      - "${PLUS_HOSTNAME:-coozila.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"
+      - "www.${PLUS_HOSTNAME:-coozila.com}:${NETWORK_LISTEN_ADDR:-172.16.0.1}"

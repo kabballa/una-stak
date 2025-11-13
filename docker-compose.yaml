@@ -1,0 +1,91 @@
+# ----------------------------------------------------------------------------------#
+#                                                                                   #
+#   Copyright (C) 2009 - 2025 Coozila! Licensed under the MIT License.              #
+#   Coozila! Team    lab@coozila.com                                                #
+#                                                                                   #
+# ----------------------------------------------------------------------------------#
+
+
+# ----------------------------------------------------------------------------------#
+
+#   STACK NETWORK    ---------------------------------------------------------------#
+
+networks:
+
+    # ------------------------------------------------------------------------------#
+
+    #   Private network for application services    --------------------------------#
+
+    kabballa_private_network:
+        #
+        #   SSH command to create the Docker network: 
+        #   docker network create --driver bridge kabballa_private_network --subnet=172.16.0.0/16
+        #
+        external: true
+
+# ----------------------------------------------------------------------------------#
+
+#   INCLUDE APPS    ----------------------------------------------------------------#
+
+include:
+    #
+    #   Include DragonfyDB Cluster
+    #
+
+    #- ./apps/dragonflydb-cluster/docker-compose.yaml
+    #- path: ../../apps/dragonflydb-cluster/docker-compose-cluster-master-slave-3-3-3.yaml
+    #  project_directory: ../../apps/dragonflydb-cluster/
+    #    - ../../apps/kabballa-db/.env
+
+    #
+    #   Include Kabballa DB Cluster
+    #
+
+    #- path: ./apps/kabballa-db/docker-compose.yaml
+    #  project_directory: ./apps/kabballa-db/
+    #  env_file:
+    #    - ./apps/kabballa-db/.env
+
+    #
+    #   Include Elasticsearch DB Cluster
+    #
+
+    #- path: ./apps/elasticsearch-cluster/docker-compose.yaml
+    #  project_directory: ./apps/elasticsearch-cluster/
+    #  env_file:
+    #    - ./apps/elasticsearch-cluster/.env
+
+
+    # ------------------------------------------------------------------------------#
+
+    #   KABBALLA DB    ----------------------------------------------------------------#
+
+    #
+    #   Include Kabballa! DB Cluster
+    #
+
+    #- path: ./apps/kabballa-db/docker-compose.yaml
+    #  project_directory: ./apps/kabballa-db/
+    #  env_file:
+    #    - ./apps/kabballa-db/.env
+        
+
+        #
+        #   Include docker-compose-override.yaml Kabballa App Plus Override
+        #
+
+        # - ./compose/coozila-plus/development/docker-compose.override.yaml
+
+    # ------------------------------------------------------------------------------#
+
+    #   UNA    ---------------------------------------------------------------------#
+
+    #
+    #   Include APP! Social
+    #
+
+    - path: compose/una/compose.yaml
+      env_file:
+        - compose/una/.env
+
+    # ------------------------------------------------------------------------------#
